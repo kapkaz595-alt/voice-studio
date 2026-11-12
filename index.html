@@ -44,9 +44,30 @@
       </section>
 
       <section id="page-effects" class="page">
-        <div class="placeholder">
+        <div id="fx-empty" class="placeholder">
           <p class="hint">变声</p>
-          <p class="sub">大叔 · 中年女声 · 儿童 · 机器人<br>第 4 步加入</p>
+          <p id="fx-empty-text" class="sub">请先在“录音”页录一段声音。</p>
+          <button id="fx-goto" class="btn-secondary">去录音</button>
+        </div>
+
+        <div id="fx-main" class="fx-wrap" hidden>
+          <div id="fx-grid" class="fx-grid"></div>
+
+          <div class="fx-tune">
+            <label for="fx-tune">音调微调 <span id="fx-tune-val">0</span> 半音</label>
+            <input id="fx-tune" type="range" min="-6" max="6" step="1" value="0">
+          </div>
+
+          <canvas id="fx-wave" class="wave"></canvas>
+          <div class="player-row">
+            <button id="fx-play-btn" class="play-btn" aria-label="播放">
+              <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+              <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+            </button>
+            <span id="fx-play-time" class="play-time">0:00 / 0:00</span>
+          </div>
+          <audio id="fx-audio" playsinline></audio>
+          <p id="fx-status" class="sub"></p>
         </div>
       </section>
 
