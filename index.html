@@ -3,95 +3,80 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0e0f13">
+  <meta name="theme-color" content="#0f1115">
   <title>Voice Studio</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div class="app">
-
     <header class="topbar">
       <h1 id="page-title">录音</h1>
     </header>
 
     <main class="pages">
+      <section id="page-record" class="page active">
+        <div class="rec-wrap">
+          <div id="rec-timer" class="rec-timer">00:00.0</div>
+          <div class="meter"><div id="rec-meter" class="meter-fill"></div></div>
 
-      <!-- 录音页 -->
-      <section class="page is-active" id="page-record" data-title="录音">
-        <div class="timer" id="timer">00:00</div>
-        <div class="wave-box"><span>波形显示区</span></div>
-        <button class="rec-btn" id="rec-btn" type="button" disabled aria-label="开始录音">
-          <span class="rec-dot"></span>
-        </button>
-        <p class="hint">录音功能将在第 2 步开发</p>
-      </section>
+          <button id="rec-btn" class="rec-btn" aria-label="开始录音">
+            <svg class="icon-mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12h-2z"/></svg>
+            <svg class="icon-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          </button>
+          <p id="rec-status" class="hint">点击开始录音</p>
+          <p id="rec-error" class="error" hidden></p>
 
-      <!-- 变声页 -->
-      <section class="page" id="page-voice" data-title="变声">
-        <div class="preset-grid">
-          <button class="preset" type="button" disabled>
-            <span class="preset-name">大叔</span>
-            <span class="preset-sub">低沉浑厚</span>
-          </button>
-          <button class="preset" type="button" disabled>
-            <span class="preset-name">中年女声</span>
-            <span class="preset-sub">成熟柔和</span>
-          </button>
-          <button class="preset" type="button" disabled>
-            <span class="preset-name">儿童</span>
-            <span class="preset-sub">轻快清亮</span>
-          </button>
-          <button class="preset" type="button" disabled>
-            <span class="preset-name">机器人</span>
-            <span class="preset-sub">电子合成</span>
-          </button>
-        </div>
-        <p class="hint">变声功能将在第 4 步开发</p>
-      </section>
-
-      <!-- 编辑页 -->
-      <section class="page" id="page-edit" data-title="编辑">
-        <div class="wave-box"><span>波形显示区</span></div>
-        <div class="tool-row">
-          <button class="tool" type="button" disabled>裁剪</button>
-          <button class="tool" type="button" disabled>音量</button>
-          <button class="tool" type="button" disabled>淡入</button>
-          <button class="tool" type="button" disabled>淡出</button>
-        </div>
-        <p class="hint">编辑功能将在第 5 步开发</p>
-      </section>
-
-      <!-- 我的作品页 -->
-      <section class="page" id="page-library" data-title="我的">
-        <div class="empty">
-          <p class="empty-title">还没有录音</p>
-          <p class="hint">保存与导出功能将在第 6 步开发</p>
+          <div id="rec-result" class="rec-result" hidden>
+            <audio id="rec-audio" controls playsinline></audio>
+            <div id="rec-info" class="sub"></div>
+            <button id="rec-discard" class="btn-secondary">重新录音</button>
+          </div>
         </div>
       </section>
 
+      <section id="page-effects" class="page">
+        <div class="placeholder">
+          <p class="hint">变声</p>
+          <p class="sub">大叔 · 中年女声 · 儿童 · 机器人<br>第 4 步加入</p>
+        </div>
+      </section>
+
+      <section id="page-editor" class="page">
+        <div class="placeholder">
+          <p class="hint">编辑</p>
+          <p class="sub">裁剪 · 音量 · 淡入淡出<br>第 5 步加入</p>
+        </div>
+      </section>
+
+      <section id="page-library" class="page">
+        <div class="placeholder">
+          <p class="hint">我的录音</p>
+          <p class="sub">本地保存与导出<br>第 6 步加入</p>
+        </div>
+      </section>
     </main>
 
-    <nav class="tabbar" role="tablist" aria-label="主导航">
-      <button class="tab is-active" type="button" role="tab" aria-selected="true" data-target="record">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    <nav class="tabbar">
+      <button class="tab active" data-page="record" data-title="录音">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12h-2z"/></svg>
         <span>录音</span>
       </button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-target="voice">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h2M8 8v8M12 4v16M16 8v8M20 12h-2"/></svg>
+      <button class="tab" data-page="effects" data-title="变声">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h2v4H3zm4-4h2v12H7zm4-4h2v20h-2zm4 4h2v12h-2zm4 4h2v4h-2z"/></svg>
         <span>变声</span>
       </button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-target="edit">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 18M8 15.5L20 6"/></svg>
+      <button class="tab" data-page="editor" data-title="编辑">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.64 7.64A3 3 0 1 0 7.5 9.5L10 12l-2.5 2.5a3 3 0 1 0 1.42 1.42L12 12.83l7 7H22v-1L9.64 7.64zM6 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0 12a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm6-7.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1zM19 3l-6 6 2 2 7-7V3z"/></svg>
         <span>编辑</span>
       </button>
-      <button class="tab" type="button" role="tab" aria-selected="false" data-target="library">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      <button class="tab" data-page="library" data-title="我的录音">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg>
         <span>我的</span>
       </button>
     </nav>
-
   </div>
+
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
