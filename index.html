@@ -28,7 +28,15 @@
           <p id="rec-error" class="error" hidden></p>
 
           <div id="rec-result" class="rec-result" hidden>
-            <audio id="rec-audio" controls playsinline></audio>
+            <canvas id="rec-wave" class="wave"></canvas>
+            <div class="player-row">
+              <button id="play-btn" class="play-btn" aria-label="播放">
+                <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+              </button>
+              <span id="play-time" class="play-time">0:00 / 0:00</span>
+            </div>
+            <audio id="rec-audio" playsinline></audio>
             <div id="rec-info" class="sub"></div>
             <button id="rec-discard" class="btn-secondary">重新录音</button>
           </div>
