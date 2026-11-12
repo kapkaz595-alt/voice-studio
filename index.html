@@ -3,13 +3,95 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#111111">
+  <meta name="theme-color" content="#0e0f13">
   <title>Voice Studio</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- 页面骨架将在第 1 步开发 -->
+  <div class="app">
+
+    <header class="topbar">
+      <h1 id="page-title">录音</h1>
+    </header>
+
+    <main class="pages">
+
+      <!-- 录音页 -->
+      <section class="page is-active" id="page-record" data-title="录音">
+        <div class="timer" id="timer">00:00</div>
+        <div class="wave-box"><span>波形显示区</span></div>
+        <button class="rec-btn" id="rec-btn" type="button" disabled aria-label="开始录音">
+          <span class="rec-dot"></span>
+        </button>
+        <p class="hint">录音功能将在第 2 步开发</p>
+      </section>
+
+      <!-- 变声页 -->
+      <section class="page" id="page-voice" data-title="变声">
+        <div class="preset-grid">
+          <button class="preset" type="button" disabled>
+            <span class="preset-name">大叔</span>
+            <span class="preset-sub">低沉浑厚</span>
+          </button>
+          <button class="preset" type="button" disabled>
+            <span class="preset-name">中年女声</span>
+            <span class="preset-sub">成熟柔和</span>
+          </button>
+          <button class="preset" type="button" disabled>
+            <span class="preset-name">儿童</span>
+            <span class="preset-sub">轻快清亮</span>
+          </button>
+          <button class="preset" type="button" disabled>
+            <span class="preset-name">机器人</span>
+            <span class="preset-sub">电子合成</span>
+          </button>
+        </div>
+        <p class="hint">变声功能将在第 4 步开发</p>
+      </section>
+
+      <!-- 编辑页 -->
+      <section class="page" id="page-edit" data-title="编辑">
+        <div class="wave-box"><span>波形显示区</span></div>
+        <div class="tool-row">
+          <button class="tool" type="button" disabled>裁剪</button>
+          <button class="tool" type="button" disabled>音量</button>
+          <button class="tool" type="button" disabled>淡入</button>
+          <button class="tool" type="button" disabled>淡出</button>
+        </div>
+        <p class="hint">编辑功能将在第 5 步开发</p>
+      </section>
+
+      <!-- 我的作品页 -->
+      <section class="page" id="page-library" data-title="我的">
+        <div class="empty">
+          <p class="empty-title">还没有录音</p>
+          <p class="hint">保存与导出功能将在第 6 步开发</p>
+        </div>
+      </section>
+
+    </main>
+
+    <nav class="tabbar" role="tablist" aria-label="主导航">
+      <button class="tab is-active" type="button" role="tab" aria-selected="true" data-target="record">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        <span>录音</span>
+      </button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-target="voice">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h2M8 8v8M12 4v16M16 8v8M20 12h-2"/></svg>
+        <span>变声</span>
+      </button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-target="edit">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 18M8 15.5L20 6"/></svg>
+        <span>编辑</span>
+      </button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-target="library">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        <span>我的</span>
+      </button>
+    </nav>
+
+  </div>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
