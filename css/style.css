@@ -355,4 +355,92 @@ body {
 .lib-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .btn-danger { color: #ff8a95; }
 
+/* 语言选择 */
+.topbar { position: relative; }
+.lang-select {
+  position: absolute;
+  right: 12px;
+  top: calc(env(safe-area-inset-top) + 12px);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 12px;
+  max-width: 96px;
+}
+
+/* 原声 / 变声 对比 */
+.ab {
+  display: flex;
+  align-self: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.seg {
+  background: var(--surface);
+  color: var(--muted);
+  border: 0;
+  padding: 8px 20px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.seg.active { background: rgba(255, 77, 94, 0.18); color: var(--text); }
+.seg:disabled { opacity: 0.5; }
+.fx-wrap > .sub { text-align: center; }
+
+/* 编辑页：工具 */
+.tool-btn { width: 100%; margin-top: 10px; }
+.tool-hint { text-align: left !important; font-size: 12px; margin-top: 6px; min-height: 0 !important; }
+.btn-secondary:disabled { opacity: 0.5; }
+
+/* 选择录音（底部弹出） */
+.picker {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+}
+.picker-box {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+}
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.picker-close {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+.picker-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.picker-name { font-size: 15px; }
+.picker-acts { display: flex; gap: 8px; }
+
+/* 我的：三按钮 / 列表按钮 */
+.lib-three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.lib-actions { grid-template-columns: repeat(3, 1fr) !important; }
+
 [hidden] { display: none !important; }
