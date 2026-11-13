@@ -42,6 +42,7 @@ export class WavePlayer {
     this.duration = 0;
     this.rafId = 0;
     this.dragging = false;
+    this.stopAt = null;
 
     audio.addEventListener('play', () => { this._loop(); this._emit(); });
     audio.addEventListener('pause', () => { cancelAnimationFrame(this.rafId); this._refresh(); });
@@ -81,7 +82,19 @@ export class WavePlayer {
     else this.play();
   }
 
-  play() { return this.audio.play().catch(() => {}); }
+  play() {
+    this.stopAt = null;
+    return this.audio.play().catch(() => {});
+  }
+
+  // 只播放 [start, end] 秒
+  playRange(start, end) {
+    this.stopAt = null;
+    this.audio.currentTime = start;
+    const p = this.audio.play().catch(() => {});
+    this.stopAt = end;
+    return p;
+  }
 
   pause() { this.audio.pause(); }
 
@@ -103,6 +116,11 @@ export class WavePlayer {
   }
 
   _loop() {
+    if (this.stopAt != null && this.audio.currentTime >= this.stopAt) {
+      this.stopAt = null;
+      this.pause();
+      return;
+    }
     this._refresh();
     if (this.playing) this.rafId = requestAnimationFrame(() => this._loop());
   }
