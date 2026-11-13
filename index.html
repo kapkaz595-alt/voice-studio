@@ -54,8 +54,12 @@
           <div id="fx-grid" class="fx-grid"></div>
 
           <div class="fx-tune">
-            <label for="fx-tune">音调微调 <span id="fx-tune-val">0</span> 半音</label>
+            <label for="fx-tune">音调（高低）<span id="fx-tune-val">0</span></label>
             <input id="fx-tune" type="range" min="-6" max="6" step="1" value="0">
+          </div>
+          <div class="fx-tune">
+            <label for="fx-formant">音色（粗细）<span id="fx-formant-val">0</span></label>
+            <input id="fx-formant" type="range" min="-6" max="6" step="1" value="0">
           </div>
 
           <canvas id="fx-wave" class="wave"></canvas>
