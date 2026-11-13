@@ -5,7 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0f1115">
   <title>Voice Studio</title>
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Voice Studio">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -26,6 +32,8 @@
           </button>
           <p id="rec-status" class="hint">点击开始录音</p>
           <p id="rec-error" class="error" hidden></p>
+          <button id="install-btn" class="btn-secondary" hidden>添加到主屏幕</button>
+          <p id="install-tip" class="sub" hidden>iPhone：点浏览器底部的分享按钮，再选“添加到主屏幕”。</p>
 
           <div id="rec-result" class="rec-result" hidden>
             <canvas id="rec-wave" class="wave"></canvas>
