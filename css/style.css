@@ -256,4 +256,50 @@ body {
 }
 .fx-tune input { width: 100%; accent-color: var(--accent); }
 
+/* 编辑页 */
+.wave-box { position: relative; }
+.sel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 77, 94, 0.14);
+  border-left: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  pointer-events: none;
+}
+.sel-handle {
+  position: absolute;
+  top: 50%;
+  width: 26px;
+  height: 46px;
+  margin-top: -23px;
+  border-radius: 8px;
+  background: var(--accent);
+  pointer-events: auto;
+  touch-action: none;
+  cursor: ew-resize;
+}
+.sel-handle::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  opacity: 0.85;
+}
+.sel-handle.left { left: -14px; }
+.sel-handle.right { right: -14px; }
+.btn-small { padding: 8px 12px; font-size: 13px; }
+.ed-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.ed-actions .fx-btn { font-size: 14px; padding: 12px 2px; }
+
 [hidden] { display: none !important; }
