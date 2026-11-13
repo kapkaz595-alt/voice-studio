@@ -13,7 +13,7 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-html, body { height: 100%; }
+html, body { height: 100%; overflow: hidden; }
 
 body {
   background: var(--bg);
@@ -26,7 +26,8 @@ body {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  position: fixed;
+  top: 0; bottom: 0; left: 0; right: 0;
   max-width: 560px;
   margin: 0 auto;
 }
