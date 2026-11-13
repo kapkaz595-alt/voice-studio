@@ -98,6 +98,22 @@ export class WavePlayer {
 
   pause() { this.audio.pause(); }
 
+  // 换一段声音（时长相近）继续从当前位置播放，用于“原声/变声”对比
+  swap({ url, peaks }) {
+    const t = this.audio.currentTime || 0;
+    const wasPlaying = this.playing;
+    this.audio.src = url;
+    this.peaks = peaks;
+    const restore = () => {
+      this.audio.removeEventListener('loadedmetadata', restore);
+      try { this.audio.currentTime = Math.min(t, this.duration || t); } catch (e) { /* 忽略 */ }
+      if (wasPlaying) this.audio.play().catch(() => {});
+      this._refresh();
+    };
+    this.audio.addEventListener('loadedmetadata', restore);
+    this._refresh();
+  }
+
   reset() {
     this.pause();
     cancelAnimationFrame(this.rafId);
