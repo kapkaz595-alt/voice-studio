@@ -1,40 +1,95 @@
-// effects.js - 变声预设与音频处理（变调 + 音色 EQ + 机器人环形调制）
+// effects.js - 变声：音调与音色（共振峰）分开调整 + EQ + 机器人
+//
+// pitch   = 音调（半音）：正数更高，负数更低
+// formant = 音色（半音）：正数更尖细（像更小的人），负数更粗壮（像更大的人）
+// 男声 -> 女声：音调大幅升高，音色小幅升高；男声 -> 大叔：音调降低，音色小幅降低
 
 export const PRESETS = [
-  { id: 'original', name: '原声', desc: '不处理', semitones: 0 },
+  { id: 'original', name: '原声', desc: '不处理', pitch: 0, formant: 0 },
   {
-    id: 'uncle', name: '大叔', desc: '低沉浑厚', semitones: -4,
+    id: 'uncle', name: '大叔', desc: '低沉浑厚', pitch: -4, formant: -2,
+    filters: [{ type: 'lowshelf', frequency: 200, gain: 3 }],
+  },
+  {
+    id: 'woman', name: '中年女声', desc: '适合男声录音', pitch: 6, formant: 3,
     filters: [
-      { type: 'lowshelf', frequency: 220, gain: 5 },
-      { type: 'highshelf', frequency: 4000, gain: -3 },
+      { type: 'lowshelf', frequency: 180, gain: -3 },
+      { type: 'peaking', frequency: 3000, gain: 2, Q: 0.8 },
     ],
   },
   {
-    id: 'woman', name: '中年女声', desc: '适合男声录音', semitones: 5,
+    id: 'child', name: '儿童', desc: '尖细可爱', pitch: 9, formant: 5,
+    filters: [{ type: 'lowshelf', frequency: 250, gain: -5 }],
+  },
+  {
+    id: 'robot', name: '机器人', desc: '单一音高', pitch: 0, formant: 0, robot: 110,
     filters: [
-      { type: 'lowshelf', frequency: 200, gain: -4 },
-      { type: 'peaking', frequency: 2500, gain: 3, Q: 0.8 },
+      { type: 'highpass', frequency: 100 },
+      { type: 'peaking', frequency: 1500, gain: 3, Q: 1 },
     ],
   },
   {
-    id: 'child', name: '儿童', desc: '尖细可爱', semitones: 8,
+    id: 'monster', name: '怪兽', desc: '极低沉', pitch: -9, formant: -5,
     filters: [
-      { type: 'lowshelf', frequency: 250, gain: -6 },
-      { type: 'highshelf', frequency: 3500, gain: 3 },
-    ],
-  },
-  {
-    id: 'robot', name: '机器人', desc: '金属颤音', semitones: 0, ring: 45,
-    filters: [{ type: 'highpass', frequency: 120 }],
-  },
-  {
-    id: 'monster', name: '怪兽', desc: '极低沉', semitones: -9,
-    filters: [
-      { type: 'lowshelf', frequency: 200, gain: 6 },
-      { type: 'lowpass', frequency: 4000 },
+      { type: 'lowshelf', frequency: 200, gain: 5 },
+      { type: 'lowpass', frequency: 4500 },
     ],
   },
 ];
+
+/* ---------- FFT ---------- */
+class FFT {
+  constructor(n) {
+    this.n = n;
+    const bits = Math.log2(n);
+    this.rev = new Uint32Array(n);
+    for (let i = 0; i < n; i++) this.rev[i] = (this.rev[i >> 1] >> 1) | ((i & 1) << (bits - 1));
+    this.cos = new Float64Array(n / 2);
+    this.sin = new Float64Array(n / 2);
+    for (let i = 0; i < n / 2; i++) {
+      this.cos[i] = Math.cos((2 * Math.PI * i) / n);
+      this.sin[i] = Math.sin((2 * Math.PI * i) / n);
+    }
+  }
+
+  // 原地变换；inverse 时已除以 n
+  transform(re, im, inverse) {
+    const n = this.n;
+    for (let i = 0; i < n; i++) {
+      const j = this.rev[i];
+      if (j > i) {
+        let t = re[i]; re[i] = re[j]; re[j] = t;
+        t = im[i]; im[i] = im[j]; im[j] = t;
+      }
+    }
+    for (let size = 2; size <= n; size <<= 1) {
+      const half = size >> 1;
+      const step = n / size;
+      for (let i = 0; i < n; i += size) {
+        for (let j = i, k = 0; j < i + half; j++, k += step) {
+          const wr = this.cos[k];
+          const wi = inverse ? this.sin[k] : -this.sin[k];
+          const l = j + half;
+          const tr = re[l] * wr - im[l] * wi;
+          const ti = re[l] * wi + im[l] * wr;
+          re[l] = re[j] - tr;
+          im[l] = im[j] - ti;
+          re[j] += tr;
+          im[j] += ti;
+        }
+      }
+    }
+    if (inverse) {
+      for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+    }
+  }
+}
+
+function hann(n) {
+  const w = new Float64Array(n);
+  for (let i = 0; i < n; i++) w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
+  return w;
+}
 
 function toMono(buffer) {
   const n = buffer.numberOfChannels;
@@ -46,79 +101,160 @@ function toMono(buffer) {
   return out;
 }
 
-// WSOLA 时间拉伸：音高不变，长度变为 alpha 倍
-function wsola(x, alpha, sr) {
-  const N = Math.max(256, Math.round((sr * 0.024) / 2) * 2); // 帧长约 24ms
-  const Hs = N >> 1;
-  const Ha = Hs / alpha;
-  const tol = Math.round(sr * 0.012); // 搜索范围约 ±12ms
+/* ---------- 音调 + 音色 分离（相位声码器 + 倒谱包络） ---------- */
+export function pitchFormantShift(x, sr, pitchSt, formantSt) {
+  const P = Math.pow(2, pitchSt / 12);
+  const F = Math.pow(2, formantSt / 12);
+  const N = sr >= 32000 ? 2048 : 1024;
+  const half = N / 2;
+  const osamp = 4;
+  const hop = N / osamp;
+  const twoPi = 2 * Math.PI;
+  const expct = (twoPi * hop) / N;
+  const q = Math.max(20, Math.round(sr / 450)); // 倒谱截断：包络平滑度
+
+  const fft = new FFT(N);
+  const win = hann(N);
+  let wsum = 0;
+  for (let j = 0; j < osamp; j++) wsum += win[j * hop] * win[j * hop];
+  const scale = 1 / wsum;
+
   const len = x.length;
+  const total = len + 2 * N;
+  const xp = new Float32Array(total);
+  xp.set(x, N);
+  const outp = new Float64Array(total);
 
-  const xp = new Float32Array(len + N + tol + 4); // 末尾补零
-  xp.set(x);
+  const re = new Float64Array(N);
+  const im = new Float64Array(N);
+  const cre = new Float64Array(N);
+  const cim = new Float64Array(N);
+  const magn = new Float64Array(half + 1);
+  const anaFreq = new Float64Array(half + 1);
+  const env = new Float64Array(half + 1);
+  const resid = new Float64Array(half + 1);
+  const lastPhase = new Float64Array(half + 1);
+  const sumPhase = new Float64Array(half + 1);
 
-  const outLen = Math.ceil(len * alpha) + N;
-  const out = new Float32Array(outLen);
-  const win = new Float32Array(N);
-  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N);
+  for (let s = 0; s + N <= total; s += hop) {
+    for (let i = 0; i < N; i++) { re[i] = xp[s + i] * win[i]; im[i] = 0; }
+    fft.transform(re, im, false);
 
-  let prev = 0;
-  for (let k = 0; ; k++) {
-    const outPos = k * Hs;
-    if (outPos + N > outLen) break;
-    const nominal = Math.round(k * Ha);
-    let best = Math.min(nominal, len);
-
-    if (k > 0) {
-      const ref = prev + Hs; // 上一帧的自然延续
-      const lo = Math.max(0, nominal - tol);
-      const hi = Math.min(len, nominal + tol);
-      let bestScore = -Infinity;
-      for (let c = lo; c <= hi; c += 2) {
-        let dot = 0;
-        let en = 1e-9;
-        for (let i = 0; i < N; i += 4) {
-          const a = xp[c + i];
-          dot += a * xp[ref + i];
-          en += a * a;
-        }
-        const score = dot / Math.sqrt(en);
-        if (score > bestScore) { bestScore = score; best = c; }
-      }
+    // 分析：幅度 + 精确频率（单位：bin）
+    for (let k = 0; k <= half; k++) {
+      magn[k] = Math.hypot(re[k], im[k]);
+      const ph = Math.atan2(im[k], re[k]);
+      let tmp = ph - lastPhase[k] - k * expct;
+      lastPhase[k] = ph;
+      tmp -= twoPi * Math.round(tmp / twoPi);
+      anaFreq[k] = k + (osamp * tmp) / twoPi;
     }
 
-    for (let i = 0; i < N; i++) out[outPos + i] += xp[best + i] * win[i];
-    prev = best;
+    // 频谱包络（倒谱平滑）
+    for (let k = 0; k <= half; k++) { cre[k] = Math.log(magn[k] + 1e-7); cim[k] = 0; }
+    for (let k = 1; k < half; k++) { cre[N - k] = cre[k]; cim[N - k] = 0; }
+    fft.transform(cre, cim, true);
+    for (let n = q + 1; n < N - q; n++) { cre[n] = 0; cim[n] = 0; }
+    fft.transform(cre, cim, false);
+    for (let k = 0; k <= half; k++) {
+      env[k] = Math.exp(cre[k]);
+      resid[k] = magn[k] / env[k];
+    }
+
+    // 合成：谐波结构按 P 重映射，包络按 F 重映射
+    re.fill(0);
+    im.fill(0);
+    for (let k = 0; k <= half; k++) {
+      const j = Math.round(k / P);
+      let m = 0;
+      let freq = k;
+      if (j <= half) {
+        freq = anaFreq[j] * P;
+        const pos = k / F;
+        let e;
+        if (pos >= half) e = env[half];
+        else {
+          const i0 = Math.floor(pos);
+          e = env[i0] + (env[i0 + 1] - env[i0]) * (pos - i0);
+        }
+        m = resid[j] * e;
+      }
+      let tmp = ((freq - k) * twoPi) / osamp + k * expct;
+      sumPhase[k] += tmp;
+      const ph = sumPhase[k];
+      re[k] = m * Math.cos(ph);
+      im[k] = m * Math.sin(ph);
+    }
+    for (let k = 1; k < half; k++) { re[N - k] = re[k]; im[N - k] = -im[k]; }
+    im[0] = 0;
+    im[half] = 0;
+    fft.transform(re, im, true);
+
+    for (let i = 0; i < N; i++) outp[s + i] += re[i] * win[i] * scale;
   }
+
+  const out = new Float32Array(len);
+  let ein = 0;
+  let eout = 0;
+  for (let i = 0; i < len; i++) {
+    out[i] = outp[N + i];
+    ein += x[i] * x[i];
+    eout += out[i] * out[i];
+  }
+  // 与原声保持同样响度
+  const g = eout > 1e-12 ? Math.sqrt(ein / eout) : 1;
+  for (let i = 0; i < len; i++) out[i] *= g;
   return out;
 }
 
-// 变调（长度不变）：先拉伸 r 倍，再按 r 倍速重采样
-export function pitchShift(x, sr, semitones) {
-  const r = Math.pow(2, semitones / 12);
-  const stretched = wsola(x, r, sr);
-  const res = new Float32Array(x.length);
-  for (let i = 0; i < res.length; i++) {
-    const p = i * r;
-    const i0 = Math.floor(p);
-    const f = p - i0;
-    const a = stretched[i0] || 0;
-    const b = stretched[i0 + 1] || 0;
-    res[i] = a + (b - a) * f;
+/* ---------- 机器人：每帧相位清零 -> 固定音高的脉冲串 ---------- */
+export function robotize(x, sr, f0 = 110) {
+  const N = 2048;
+  const half = N / 2;
+  const hop = Math.max(64, Math.round(sr / f0));
+  const fft = new FFT(N);
+  const win = hann(N);
+  const len = x.length;
+  const total = len + 2 * N;
+  const xp = new Float32Array(total);
+  xp.set(x, N);
+  const outp = new Float64Array(total);
+  const re = new Float64Array(N);
+  const im = new Float64Array(N);
+
+  for (let s = 0; s + N <= total; s += hop) {
+    for (let i = 0; i < N; i++) { re[i] = xp[s + i] * win[i]; im[i] = 0; }
+    fft.transform(re, im, false);
+    for (let k = 0; k < N; k++) { re[k] = Math.hypot(re[k], im[k]); im[k] = 0; }
+    fft.transform(re, im, true);
+    for (let i = 0; i < N; i++) outp[s + i] += re[(i + half) % N] * win[i];
   }
-  return res;
+
+  const out = new Float32Array(len);
+  let ein = 0;
+  let eout = 0;
+  for (let i = 0; i < len; i++) {
+    out[i] = outp[N + i];
+    ein += x[i] * x[i];
+    eout += out[i] * out[i];
+  }
+  const g = eout > 0 ? Math.sqrt(ein / eout) : 1; // 与原声同样响度
+  for (let i = 0; i < len; i++) out[i] *= g;
+  return out;
 }
 
 const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
 
-// 应用预设，返回新的 AudioBuffer（单声道）。extraSemitones 为用户微调
-export async function applyPreset(buffer, preset, extraSemitones = 0) {
-  const st = preset.semitones + extraSemitones;
-  if (st === 0 && !preset.filters && !preset.ring) return buffer;
+// 应用预设，返回新的 AudioBuffer（单声道）。extra = { pitch, formant } 为用户微调（半音）
+export async function applyPreset(buffer, preset, extra = {}) {
+  const pitch = (preset.pitch || 0) + (extra.pitch || 0);
+  const formant = (preset.formant || 0) + (extra.formant || 0);
+  if (pitch === 0 && formant === 0 && !preset.filters && !preset.robot) return buffer;
 
   const sr = buffer.sampleRate;
   let data = toMono(buffer);
-  if (st !== 0) data = pitchShift(data, sr, st);
+  if (preset.robot) data = robotize(data, sr, preset.robot);
+  if (pitch !== 0 || formant !== 0) data = pitchFormantShift(data, sr, pitch, formant);
 
   const ctx = new OfflineCtx(1, data.length, sr);
   const buf = ctx.createBuffer(1, data.length, sr);
@@ -135,16 +271,6 @@ export async function applyPreset(buffer, preset, extraSemitones = 0) {
     if (f.Q) bq.Q.value = f.Q;
     node.connect(bq);
     node = bq;
-  }
-  if (preset.ring) {
-    const g = ctx.createGain();
-    g.gain.value = 0;
-    const osc = ctx.createOscillator();
-    osc.frequency.value = preset.ring;
-    osc.connect(g.gain);
-    osc.start();
-    node.connect(g);
-    node = g;
   }
   node.connect(ctx.destination);
   src.start();
