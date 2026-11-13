@@ -302,4 +302,57 @@ body {
 }
 .ed-actions .fx-btn { font-size: 14px; padding: 12px 2px; }
 
+/* 我的录音页 */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card #lib-current-actions { display: flex; flex-direction: column; gap: 10px; }
+.card-info { text-align: left !important; }
+.text-input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 16px;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary:disabled, .btn-secondary:disabled { opacity: 0.5; }
+.lib-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.section-title { font-size: 15px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+.lib-list { display: flex; flex-direction: column; gap: 10px; }
+.lib-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lib-top { display: flex; align-items: center; gap: 12px; }
+.lib-meta { min-width: 0; flex: 1; }
+.lib-meta .sub { text-align: left; min-height: 0; font-size: 12px; }
+.lib-name { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.play-btn.small { width: 42px; height: 42px; flex: none; }
+.play-btn.small svg { width: 22px; height: 22px; }
+.lib-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.btn-danger { color: #ff8a95; }
+
 [hidden] { display: none !important; }
