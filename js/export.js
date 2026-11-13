@@ -36,3 +36,78 @@ export function audioBufferToWav(buffer) {
   }
   return new Blob([ab], { type: 'audio/wav' });
 }
+
+// 触发浏览器下载
+export function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+/* ---------- MP3（lamejs，首次使用时从 CDN 加载，需要联网） ---------- */
+const LAME_URLS = [
+  'https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js',
+  'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js',
+];
+let lamePromise = null;
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => { s.remove(); reject(new Error('load failed: ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+
+function loadLame() {
+  if (window.lamejs) return Promise.resolve(window.lamejs);
+  if (!lamePromise) {
+    lamePromise = (async () => {
+      for (const url of LAME_URLS) {
+        try {
+          await loadScript(url);
+          if (window.lamejs) return window.lamejs;
+        } catch (e) { /* 试下一个地址 */ }
+      }
+      lamePromise = null;
+      throw new Error('MP3 编码库加载失败，请检查网络，或先下载 WAV。');
+    })();
+  }
+  return lamePromise;
+}
+
+const toInt16 = f => {
+  const o = new Int16Array(f.length);
+  for (let i = 0; i < f.length; i++) {
+    const s = Math.max(-1, Math.min(1, f[i]));
+    o[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  return o;
+};
+
+// AudioBuffer -> MP3 Blob
+export async function audioBufferToMp3(buffer, kbps = 128) {
+  const lamejs = await loadLame();
+  const ch = Math.min(2, buffer.numberOfChannels);
+  const enc = new lamejs.Mp3Encoder(ch, buffer.sampleRate, kbps);
+  const L = toInt16(buffer.getChannelData(0));
+  const R = ch > 1 ? toInt16(buffer.getChannelData(1)) : null;
+  const block = 1152;
+  const parts = [];
+  for (let i = 0, n = 0; i < L.length; i += block, n++) {
+    const l = L.subarray(i, i + block);
+    const out = R ? enc.encodeBuffer(l, R.subarray(i, i + block)) : enc.encodeBuffer(l);
+    if (out.length) parts.push(new Uint8Array(out));
+    if (n % 200 === 199) await new Promise(r => setTimeout(r)); // 让界面不卡死
+  }
+  const end = enc.flush();
+  if (end.length) parts.push(new Uint8Array(end));
+  return new Blob(parts, { type: 'audio/mpeg' });
+}
