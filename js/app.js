@@ -4,6 +4,7 @@ import { WavePlayer, decodeBlob, computePeaks } from './player.js';
 import { PRESETS, applyPreset } from './effects.js';
 import { audioBufferToWav } from './export.js';
 import { initEditor } from './editor.js';
+import { initLibrary } from './library.js';
 
 // 全局状态（后续步骤的编辑、导出都用它）
 // recording = { blob, mimeType, duration, url, buffer(AudioBuffer) }  原始录音
@@ -47,6 +48,8 @@ const editor = initEditor({
   goRecord: () => showPage('record', '录音'),
 });
 
+const library = initLibrary({ $, state, PRESETS });
+
 /* ---------- 页面切换 ---------- */
 const tabs = document.querySelectorAll('.tab');
 const pages = document.querySelectorAll('.page');
@@ -56,11 +59,13 @@ function showPage(name, label) {
   player.pause();
   fxPlayer.pause();
   editor.pause();
+  library.pause();
   pages.forEach(p => p.classList.toggle('active', p.id === `page-${name}`));
   tabs.forEach(t => t.classList.toggle('active', t.dataset.page === name));
   title.textContent = label;
   if (name === 'effects') refreshEffects();
   if (name === 'editor') editor.refresh();
+  if (name === 'library') library.refresh();
 }
 
 tabs.forEach(tab => {
@@ -222,6 +227,7 @@ async function runEffect() {
   if (fx.url) URL.revokeObjectURL(fx.url);
   fx.url = url;
   state.processed = { buffer: out, blob, url, presetId: preset.id, tune: fx.tune, ftune: fx.ftune };
+  state.edited = null; // 变声结果变了，之前的编辑作废（进入编辑页时重新生成）
   fxPlayer.load({ url, peaks: computePeaks(out), duration: out.duration });
   setBusy(false, preset.id === 'original' && !fx.tune && !fx.ftune ? '当前：原声' : `已应用：${preset.name}`);
 }
