@@ -14,22 +14,22 @@ function pickMime() {
   return MIME_CANDIDATES.find(t => MediaRecorder.isTypeSupported(t)) || '';
 }
 
-// 把错误转成中文提示
+// 把错误转成 [词条 key, 参数]，界面按当前语言显示
 export function explainError(err) {
-  if (!window.isSecureContext) return '需要 HTTPS 网址才能录音，请使用 https:// 打开。';
-  if (!isSupported()) return '当前浏览器不支持录音，请换用 Chrome 或 Safari。';
+  if (!window.isSecureContext) return ['err.https'];
+  if (!isSupported()) return ['err.unsupported'];
   switch (err && err.name) {
     case 'NotAllowedError':
     case 'SecurityError':
-      return '麦克风权限被拒绝。请在浏览器设置中允许使用麦克风，然后刷新页面。';
+      return ['err.denied'];
     case 'NotFoundError':
     case 'OverconstrainedError':
-      return '没有找到麦克风设备。';
+      return ['err.nomic'];
     case 'NotReadableError':
     case 'AbortError':
-      return '麦克风被其他应用占用，请关闭后重试。';
+      return ['err.busy'];
     default:
-      return '录音失败：' + ((err && err.message) || '未知错误');
+      return ['err.generic', { m: (err && err.message) || '?' }];
   }
 }
 
