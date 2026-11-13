@@ -231,6 +231,8 @@ export function initEditor({ $, state, makePlayer, computePeaks, audioBufferToWa
       ed.selEnd = 1;
       resetParams();
       render();
+    } else if (!state.edited) {
+      render();
     }
   }
 
