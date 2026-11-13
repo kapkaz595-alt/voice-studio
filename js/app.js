@@ -272,3 +272,38 @@ fxFormant.addEventListener('change', () => {
 });
 
 $('fx-goto').addEventListener('click', () => showPage('record', '录音'));
+
+/* ---------- 添加到主屏幕 / 离线缓存 ---------- */
+const installBtn = $('install-btn');
+const installTip = $('install-tip');
+const isStandalone = () =>
+  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (!isStandalone()) installBtn.hidden = false;
+});
+
+installBtn.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  try { await deferredPrompt.userChoice; } catch (e) { /* 忽略 */ }
+  deferredPrompt = null;
+  installBtn.hidden = true;
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredPrompt = null;
+  installBtn.hidden = true;
+});
+
+// iPhone Safari 没有安装按钮，只显示操作提示
+if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !isStandalone()) installTip.hidden = false;
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
