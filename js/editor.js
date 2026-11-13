@@ -1,4 +1,9 @@
-// editor.js - 编辑：选区裁剪/删除、撤销、音量、淡入淡出
+// editor.js - 编辑：选区裁剪/删除、撤销、音量、淡入淡出、降噪、标准化、变速、拼接
+
+import { FFT, hann, toMono, pitchFormantShift } from './effects.js';
+import { listRecordings } from './storage.js';
+import { decodeBlob } from './player.js';
+import { t, setText } from './i18n.js';
 
 const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
 
@@ -7,6 +12,9 @@ function makeBuffer(ch, len, sr) {
 }
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- 音频处理函数 ---------- */
 
 // 保留 [start, end] 秒
 export function sliceBuffer(buf, start, end) {
@@ -72,6 +80,134 @@ export function peakOf(buf) {
   return peak;
 }
 
+// 音量标准化：最大峰值调到 target
+export function normalizeBuffer(buf, target = 0.95) {
+  const peak = peakOf(buf);
+  if (peak < 1e-4) return buf;
+  return applyGainFade(buf, { gain: target / peak });
+}
+
+// 降噪（谱减法）：用录音里最安静的 10% 片段作为噪声样本。strength 0~1
+export function denoiseBuffer(buf, strength) {
+  const N = 1024;
+  const half = N / 2;
+  const hop = N / 4;
+  const fft = new FFT(N);
+  const win = hann(N);
+  const scale = 1 / 1.5;
+  const alpha = 1 + 2.5 * strength;
+  const floor = 0.03 + (1 - strength) * 0.25;
+  const out = makeBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
+  const re = new Float64Array(N);
+  const im = new Float64Array(N);
+
+  for (let c = 0; c < buf.numberOfChannels; c++) {
+    const x = buf.getChannelData(c);
+    const len = x.length;
+    const total = len + 2 * N;
+    const xp = new Float32Array(total);
+    xp.set(x, N);
+    const frame = s => {
+      for (let i = 0; i < N; i++) { re[i] = xp[s + i] * win[i]; im[i] = 0; }
+      fft.transform(re, im, false);
+    };
+
+    // 1) 每帧能量
+    const starts = [];
+    for (let s = 0; s + N <= total; s += hop) starts.push(s);
+    const energy = new Float64Array(starts.length);
+    for (let f = 0; f < starts.length; f++) {
+      let e = 0;
+      const s = starts[f];
+      for (let i = 0; i < N; i++) e += xp[s + i] * xp[s + i];
+      energy[f] = e;
+    }
+
+    // 2) 噪声谱 = 最安静 10% 帧的平均幅度
+    const order = Array.from(energy.keys()).sort((a, b) => energy[a] - energy[b]);
+    const nq = Math.max(3, Math.floor(starts.length * 0.1));
+    const noise = new Float64Array(half + 1);
+    for (let i = 0; i < nq; i++) {
+      frame(starts[order[i]]);
+      for (let k = 0; k <= half; k++) noise[k] += Math.hypot(re[k], im[k]) / nq;
+    }
+
+    // 3) 逐帧谱减 + 时间平滑
+    const outp = new Float64Array(total);
+    const prev = new Float64Array(half + 1).fill(1);
+    for (const s of starts) {
+      frame(s);
+      for (let k = 0; k <= half; k++) {
+        const m = Math.hypot(re[k], im[k]);
+        let g = Math.max(floor, 1 - (alpha * noise[k]) / (m + 1e-9));
+        g = 0.6 * g + 0.4 * prev[k];
+        prev[k] = g;
+        re[k] *= g;
+        im[k] *= g;
+      }
+      for (let k = 1; k < half; k++) { re[N - k] = re[k]; im[N - k] = -im[k]; }
+      im[0] = 0;
+      im[half] = 0;
+      fft.transform(re, im, true);
+      for (let i = 0; i < N; i++) outp[s + i] += re[i] * win[i] * scale;
+    }
+
+    const o = new Float32Array(len);
+    for (let i = 0; i < len; i++) o[i] = outp[N + i];
+    out.copyToChannel(o, c);
+  }
+  return out;
+}
+
+// 变速不变调：s > 1 更快。先重采样改变速度，再把音调和音色恢复
+export function changeSpeed(buf, s) {
+  if (Math.abs(s - 1) < 0.01) return buf;
+  const sr = buf.sampleRate;
+  const x = toMono(buf);
+  const len = Math.max(1, Math.round(x.length / s));
+  const y = new Float32Array(len);
+  for (let i = 0; i < len; i++) {
+    const p = i * s;
+    const i0 = Math.floor(p);
+    const f = p - i0;
+    y[i] = (x[i0] || 0) * (1 - f) + (x[i0 + 1] || 0) * f;
+  }
+  const st = -12 * Math.log2(s);
+  const z = pitchFormantShift(y, sr, st, st);
+  const out = makeBuffer(1, len, sr);
+  out.copyToChannel(z, 0);
+  return out;
+}
+
+async function resampleTo(buf, sr) {
+  if (buf.sampleRate === sr) return buf;
+  const ctx = new OfflineCtx(buf.numberOfChannels, Math.ceil((buf.length * sr) / buf.sampleRate), sr);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  src.start();
+  return ctx.startRendering();
+}
+
+// 把 other 插入 base 的 atSec 秒处
+export async function insertBuffer(base, other, atSec) {
+  const sr = base.sampleRate;
+  other = await resampleTo(other, sr);
+  const at = clamp(Math.round(atSec * sr), 0, base.length);
+  const len = base.length + other.length;
+  const out = makeBuffer(base.numberOfChannels, len, sr);
+  for (let c = 0; c < base.numberOfChannels; c++) {
+    const b = base.getChannelData(c);
+    const a = other.getChannelData(Math.min(c, other.numberOfChannels - 1));
+    const o = new Float32Array(len);
+    o.set(b.subarray(0, at), 0);
+    o.set(a, at);
+    o.set(b.subarray(at), at + a.length);
+    out.copyToChannel(o, c);
+  }
+  return out;
+}
+
 /* ---------- 编辑页界面 ---------- */
 const fmt = sec => {
   const m = Math.floor(sec / 60);
@@ -91,6 +227,10 @@ export function initEditor({ $, state, makePlayer, computePeaks, audioBufferToWa
   const gainIn = $('ed-gain');
   const fadeInIn = $('ed-fadein');
   const fadeOutIn = $('ed-fadeout');
+  const denoiseIn = $('ed-denoise');
+  const speedIn = $('ed-speed');
+  const picker = $('ed-picker');
+  const toolEls = [$('ed-normalize'), $('ed-denoise-btn'), $('ed-speed-btn'), $('ed-append'), denoiseIn, speedIn];
 
   const ed = {
     source: null, base: null, undo: [],
@@ -100,21 +240,31 @@ export function initEditor({ $, state, makePlayer, computePeaks, audioBufferToWa
   };
 
   const wholeSelected = () => ed.selStart <= 0.001 && ed.selEnd >= 0.999;
+  const secText = v => `${Number(v).toFixed(1)} ${t('unit.sec')}`;
+
+  function setLabels() {
+    $('ed-gain-val').textContent = gainIn.value + '%';
+    $('ed-fadein-val').textContent = secText(fadeInIn.value);
+    $('ed-fadeout-val').textContent = secText(fadeOutIn.value);
+    $('ed-denoise-val').textContent = denoiseIn.value + '%';
+    $('ed-speed-val').textContent = Number(speedIn.value).toFixed(2) + '×';
+  }
 
   function resetParams() {
     ed.gain = 100; ed.fadeIn = 0; ed.fadeOut = 0;
     gainIn.value = 100; fadeInIn.value = 0; fadeOutIn.value = 0;
-    $('ed-gain-val').textContent = '100%';
-    $('ed-fadein-val').textContent = '0.0 秒';
-    $('ed-fadeout-val').textContent = '0.0 秒';
+    denoiseIn.value = 50; speedIn.value = 1;
+    setLabels();
   }
 
   function updateSel() {
     sel.style.left = ed.selStart * 100 + '%';
     sel.style.right = (1 - ed.selEnd) * 100 + '%';
     const d = ed.base ? ed.base.duration : 0;
-    info.textContent =
-      `选区 ${fmt(ed.selStart * d)} – ${fmt(ed.selEnd * d)}（${((ed.selEnd - ed.selStart) * d).toFixed(1)} 秒） · 总长 ${d.toFixed(1)} 秒`;
+    setText(info, 'ed.selInfo', {
+      a: fmt(ed.selStart * d), b: fmt(ed.selEnd * d),
+      c: ((ed.selEnd - ed.selStart) * d).toFixed(1), d: d.toFixed(1),
+    });
     btnCrop.disabled = wholeSelected();
     btnCut.disabled = wholeSelected();
     btnUndo.disabled = ed.undo.length === 0;
@@ -132,7 +282,8 @@ export function initEditor({ $, state, makePlayer, computePeaks, audioBufferToWa
     state.edited = { buffer: out, blob, url };
     player.load({ url, peaks: computePeaks(out), duration: out.duration });
     updateSel();
-    status.textContent = ed.gain > 100 && peakOf(out) > 1 ? '音量过大，可能失真，建议调低音量' : '';
+    if (ed.gain > 100 && peakOf(out) > 1) setText(status, 'ed.warn.loud');
+    else setText(status, null);
   }
 
   function applyBase(newBase) {
@@ -142,6 +293,27 @@ export function initEditor({ $, state, makePlayer, computePeaks, audioBufferToWa
     ed.selStart = 0;
     ed.selEnd = 1;
     render();
+  }
+
+  // 耗时操作：先提示“处理中”，再在下一帧执行
+  async function runTool(fn) {
+    if (!ed.base) return;
+    toolEls.forEach(e => { e.disabled = true; });
+    setText(status, 'ed.processing');
+    await sleep(40);
+    try {
+      const out = await fn();
+      if (out && out !== ed.base) {
+        applyBase(out);
+        setText(status, 'ed.done');
+      } else {
+        setText(status, null);
+      }
+    } catch (e) {
+      setText(status, 'ed.fail', { m: e.i18n ? t(e.i18n) : (e.message || String(e)) });
+    } finally {
+      toolEls.forEach(el => { el.disabled = false; });
+    }
   }
 
   /* 选区手柄 */
@@ -170,7 +342,7 @@ export function initEditor({ $, state, makePlayer, computePeaks, audioBufferToWa
   bindHandle($('ed-h-left'), true);
   bindHandle($('ed-h-right'), false);
 
-  /* 按钮 */
+  /* 基本按钮 */
   $('ed-play-sel').addEventListener('click', () => {
     if (!ed.base) return;
     const d = ed.base.duration;
@@ -203,13 +375,65 @@ export function initEditor({ $, state, makePlayer, computePeaks, audioBufferToWa
     render();
   });
 
-  /* 滑块：拖动时更新文字，松手后重新生成 */
-  gainIn.addEventListener('input', () => { $('ed-gain-val').textContent = gainIn.value + '%'; });
+  /* 音量 / 淡入淡出：拖动时更新文字，松手后重新生成 */
+  gainIn.addEventListener('input', setLabels);
   gainIn.addEventListener('change', () => { ed.gain = Number(gainIn.value); render(); });
-  fadeInIn.addEventListener('input', () => { $('ed-fadein-val').textContent = Number(fadeInIn.value).toFixed(1) + ' 秒'; });
+  fadeInIn.addEventListener('input', setLabels);
   fadeInIn.addEventListener('change', () => { ed.fadeIn = Number(fadeInIn.value); render(); });
-  fadeOutIn.addEventListener('input', () => { $('ed-fadeout-val').textContent = Number(fadeOutIn.value).toFixed(1) + ' 秒'; });
+  fadeOutIn.addEventListener('input', setLabels);
   fadeOutIn.addEventListener('change', () => { ed.fadeOut = Number(fadeOutIn.value); render(); });
+
+  /* 工具：标准化 / 降噪 / 变速 */
+  denoiseIn.addEventListener('input', setLabels);
+  speedIn.addEventListener('input', setLabels);
+  $('ed-normalize').addEventListener('click', () => runTool(() => normalizeBuffer(ed.base)));
+  $('ed-denoise-btn').addEventListener('click', () =>
+    runTool(() => denoiseBuffer(ed.base, Number(denoiseIn.value) / 100)));
+  $('ed-speed-btn').addEventListener('click', () =>
+    runTool(() => changeSpeed(ed.base, Number(speedIn.value))));
+
+  /* 追加 / 插入已保存的录音 */
+  async function openPicker() {
+    picker.hidden = false;
+    const list = $('ed-picker-list');
+    list.replaceChildren();
+    let items = [];
+    try {
+      items = await listRecordings();
+    } catch (e) {
+      setText(status, 'ed.fail', { m: e.i18n ? t(e.i18n) : (e.message || String(e)) });
+    }
+    $('ed-picker-empty').hidden = items.length > 0;
+    for (const it of items) {
+      const row = document.createElement('div');
+      row.className = 'picker-row';
+      const name = document.createElement('div');
+      name.className = 'picker-name';
+      name.textContent = `${it.name} · ${Math.floor(it.duration / 60)}:${String(Math.floor(it.duration % 60)).padStart(2, '0')}`;
+      const acts = document.createElement('div');
+      acts.className = 'picker-acts';
+      const add = (label, atEnd) => {
+        const b = document.createElement('button');
+        b.className = 'btn-secondary btn-small';
+        b.textContent = label;
+        b.addEventListener('click', () => {
+          picker.hidden = true;
+          runTool(async () => {
+            const other = await decodeBlob(it.blob);
+            return insertBuffer(ed.base, other, atEnd ? ed.base.duration : ed.selStart * ed.base.duration);
+          });
+        });
+        acts.appendChild(b);
+      };
+      add(t('ed.pickEnd'), true);
+      add(t('ed.pickAt'), false);
+      row.append(name, acts);
+      list.appendChild(row);
+    }
+  }
+  $('ed-append').addEventListener('click', openPicker);
+  $('ed-picker-close').addEventListener('click', () => { picker.hidden = true; });
+  picker.addEventListener('click', e => { if (e.target === picker) picker.hidden = true; });
 
   $('ed-goto').addEventListener('click', goRecord);
 
@@ -219,9 +443,7 @@ export function initEditor({ $, state, makePlayer, computePeaks, audioBufferToWa
     const src = (state.processed && state.processed.buffer) || (rec && rec.buffer) || null;
     $('ed-empty').hidden = !!src;
     $('ed-main').hidden = !src;
-    $('ed-empty-text').textContent = rec && !rec.buffer
-      ? '当前录音无法解码，不能编辑。请换用 Chrome 或 Safari 重新录音。'
-      : '请先在“录音”页录一段声音。';
+    setText($('ed-empty-text'), rec && !rec.buffer ? 'empty.cannotDecode.ed' : 'empty.needRecording');
     if (!src) return;
     if (src !== ed.source) {
       ed.source = src;
@@ -244,7 +466,14 @@ export function initEditor({ $, state, makePlayer, computePeaks, audioBufferToWa
     ed.base = null;
     ed.undo = [];
     state.edited = null;
+    picker.hidden = true;
   }
 
-  return { refresh, reset, pause: () => player.pause() };
+  function relabel() {
+    setLabels();
+    if (!picker.hidden) openPicker();
+  }
+
+  setLabels();
+  return { refresh, reset, relabel, pause: () => player.pause() };
 }
