@@ -147,9 +147,11 @@ const fxMain = $('fx-main');
 const fxGrid = $('fx-grid');
 const fxTune = $('fx-tune');
 const fxTuneVal = $('fx-tune-val');
+const fxFormant = $('fx-formant');
+const fxFormantVal = $('fx-formant-val');
 const fxStatus = $('fx-status');
 
-const fx = { forUrl: null, presetId: 'original', tune: 0, token: 0, url: null };
+const fx = { forUrl: null, presetId: 'original', tune: 0, ftune: 0, token: 0, url: null };
 
 PRESETS.forEach(p => {
   const b = document.createElement('button');
@@ -158,6 +160,7 @@ PRESETS.forEach(p => {
   b.innerHTML = `${p.name}<small>${p.desc}</small>`;
   b.addEventListener('click', () => {
     fx.presetId = p.id;
+    resetSliders();
     runEffect();
   });
   fxGrid.appendChild(b);
@@ -169,11 +172,21 @@ function setBusy(busy, text) {
     b.classList.toggle('active', b.dataset.id === fx.presetId);
   });
   fxTune.disabled = busy;
+  fxFormant.disabled = busy;
   fxStatus.textContent = text || '';
 }
 
 function formatTune(v) {
   return (v > 0 ? '+' : '') + v;
+}
+
+function resetSliders() {
+  fx.tune = 0;
+  fx.ftune = 0;
+  fxTune.value = 0;
+  fxFormant.value = 0;
+  fxTuneVal.textContent = '0';
+  fxFormantVal.textContent = '0';
 }
 
 async function runEffect() {
@@ -187,7 +200,7 @@ async function runEffect() {
 
   let out;
   try {
-    out = await applyPreset(rec.buffer, preset, fx.tune);
+    out = await applyPreset(rec.buffer, preset, { pitch: fx.tune, formant: fx.ftune });
   } catch (e) {
     if (token === fx.token) setBusy(false, '处理失败：' + (e.message || e));
     return;
@@ -198,9 +211,9 @@ async function runEffect() {
   const url = URL.createObjectURL(blob);
   if (fx.url) URL.revokeObjectURL(fx.url);
   fx.url = url;
-  state.processed = { buffer: out, blob, url, presetId: preset.id, tune: fx.tune };
+  state.processed = { buffer: out, blob, url, presetId: preset.id, tune: fx.tune, ftune: fx.ftune };
   fxPlayer.load({ url, peaks: computePeaks(out), duration: out.duration });
-  setBusy(false, preset.id === 'original' && !fx.tune ? '当前：原声' : `已应用：${preset.name}`);
+  setBusy(false, preset.id === 'original' && !fx.tune && !fx.ftune ? '当前：原声' : `已应用：${preset.name}`);
 }
 
 function resetEffects() {
@@ -225,9 +238,7 @@ function refreshEffects() {
   if (fx.forUrl !== rec.url) {
     fx.forUrl = rec.url;
     fx.presetId = 'original';
-    fx.tune = 0;
-    fxTune.value = 0;
-    fxTuneVal.textContent = '0';
+    resetSliders();
     runEffect();
   }
 }
@@ -235,6 +246,12 @@ function refreshEffects() {
 fxTune.addEventListener('input', () => { fxTuneVal.textContent = formatTune(Number(fxTune.value)); });
 fxTune.addEventListener('change', () => {
   fx.tune = Number(fxTune.value);
+  runEffect();
+});
+
+fxFormant.addEventListener('input', () => { fxFormantVal.textContent = formatTune(Number(fxFormant.value)); });
+fxFormant.addEventListener('change', () => {
+  fx.ftune = Number(fxFormant.value);
   runEffect();
 });
 
