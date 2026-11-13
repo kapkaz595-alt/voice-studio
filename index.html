@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0f1115">
-  <title>Voice Studio</title>
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Voice Studio">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <title>Voice Studio</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -17,28 +17,30 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <h1 id="page-title">录音</h1>
+      <h1 id="page-title" data-k="page.record"></h1>
+      <select id="lang-select" class="lang-select" aria-label="Language"></select>
     </header>
 
     <main class="pages">
+      <!-- ========== 录音 ========== -->
       <section id="page-record" class="page active">
         <div class="rec-wrap">
           <div id="rec-timer" class="rec-timer">00:00.0</div>
           <div class="meter"><div id="rec-meter" class="meter-fill"></div></div>
 
-          <button id="rec-btn" class="rec-btn" aria-label="开始录音">
+          <button id="rec-btn" class="rec-btn">
             <svg class="icon-mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12h-2z"/></svg>
             <svg class="icon-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
           </button>
-          <p id="rec-status" class="hint">点击开始录音</p>
+          <p id="rec-status" class="hint" data-k="rec.status.idle"></p>
           <p id="rec-error" class="error" hidden></p>
-          <button id="install-btn" class="btn-secondary" hidden>添加到主屏幕</button>
-          <p id="install-tip" class="sub" hidden>iPhone：点浏览器底部的分享按钮，再选“添加到主屏幕”。</p>
+          <button id="install-btn" class="btn-secondary" data-i18n="install.btn" hidden></button>
+          <p id="install-tip" class="sub" data-i18n="install.tip" hidden></p>
 
           <div id="rec-result" class="rec-result" hidden>
             <canvas id="rec-wave" class="wave"></canvas>
             <div class="player-row">
-              <button id="play-btn" class="play-btn" aria-label="播放">
+              <button id="play-btn" class="play-btn">
                 <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
                 <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
               </button>
@@ -46,33 +48,39 @@
             </div>
             <audio id="rec-audio" playsinline></audio>
             <div id="rec-info" class="sub"></div>
-            <button id="rec-discard" class="btn-secondary">重新录音</button>
+            <button id="rec-discard" class="btn-secondary" data-i18n="rec.discard"></button>
           </div>
         </div>
       </section>
 
+      <!-- ========== 变声 ========== -->
       <section id="page-effects" class="page">
         <div id="fx-empty" class="placeholder">
-          <p class="hint">变声</p>
-          <p id="fx-empty-text" class="sub">请先在“录音”页录一段声音。</p>
-          <button id="fx-goto" class="btn-secondary">去录音</button>
+          <p class="hint" data-i18n="tab.effects"></p>
+          <p id="fx-empty-text" class="sub" data-k="empty.needRecording"></p>
+          <button id="fx-goto" class="btn-secondary" data-i18n="empty.goRecord"></button>
         </div>
 
         <div id="fx-main" class="fx-wrap" hidden>
           <div id="fx-grid" class="fx-grid"></div>
 
           <div class="fx-tune">
-            <label for="fx-tune">音调（高低）<span id="fx-tune-val">0</span></label>
+            <label for="fx-tune"><span data-i18n="fx.pitch"></span> <span id="fx-tune-val">0</span></label>
             <input id="fx-tune" type="range" min="-6" max="6" step="1" value="0">
           </div>
           <div class="fx-tune">
-            <label for="fx-formant">音色（粗细）<span id="fx-formant-val">0</span></label>
+            <label for="fx-formant"><span data-i18n="fx.formant"></span> <span id="fx-formant-val">0</span></label>
             <input id="fx-formant" type="range" min="-6" max="6" step="1" value="0">
           </div>
+          <p class="sub" data-i18n="fx.hint"></p>
 
           <canvas id="fx-wave" class="wave"></canvas>
+          <div class="ab" role="group">
+            <button id="fx-ab-proc" class="seg active" data-i18n="fx.ab.proc"></button>
+            <button id="fx-ab-orig" class="seg" data-i18n="fx.ab.orig"></button>
+          </div>
           <div class="player-row">
-            <button id="fx-play-btn" class="play-btn" aria-label="播放">
+            <button id="fx-play-btn" class="play-btn">
               <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
               <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
             </button>
@@ -83,11 +91,12 @@
         </div>
       </section>
 
+      <!-- ========== 编辑 ========== -->
       <section id="page-editor" class="page">
         <div id="ed-empty" class="placeholder">
-          <p class="hint">编辑</p>
-          <p id="ed-empty-text" class="sub">请先在“录音”页录一段声音。</p>
-          <button id="ed-goto" class="btn-secondary">去录音</button>
+          <p class="hint" data-i18n="tab.editor"></p>
+          <p id="ed-empty-text" class="sub" data-k="empty.needRecording"></p>
+          <button id="ed-goto" class="btn-secondary" data-i18n="empty.goRecord"></button>
         </div>
 
         <div id="ed-main" class="fx-wrap" hidden>
@@ -101,77 +110,108 @@
           <p id="ed-sel-info" class="sub"></p>
 
           <div class="player-row">
-            <button id="ed-play-btn" class="play-btn" aria-label="播放">
+            <button id="ed-play-btn" class="play-btn">
               <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
               <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
             </button>
             <span id="ed-play-time" class="play-time">0:00 / 0:00</span>
-            <button id="ed-play-sel" class="btn-secondary btn-small">试听选区</button>
+            <button id="ed-play-sel" class="btn-secondary btn-small" data-i18n="ed.playSel"></button>
           </div>
           <audio id="ed-audio" playsinline></audio>
 
           <div class="ed-actions">
-            <button id="ed-crop" class="fx-btn">保留选区</button>
-            <button id="ed-cut" class="fx-btn">删除选区</button>
-            <button id="ed-undo" class="fx-btn">撤销</button>
-            <button id="ed-reset" class="fx-btn">全部重置</button>
+            <button id="ed-crop" class="fx-btn" data-i18n="ed.crop"></button>
+            <button id="ed-cut" class="fx-btn" data-i18n="ed.cut"></button>
+            <button id="ed-undo" class="fx-btn" data-i18n="ed.undo"></button>
+            <button id="ed-reset" class="fx-btn" data-i18n="ed.reset"></button>
           </div>
 
           <div class="fx-tune">
-            <label for="ed-gain">音量 <span id="ed-gain-val">100%</span></label>
+            <label for="ed-gain"><span data-i18n="ed.gain"></span> <span id="ed-gain-val">100%</span></label>
             <input id="ed-gain" type="range" min="0" max="200" step="10" value="100">
           </div>
           <div class="fx-tune">
-            <label for="ed-fadein">淡入 <span id="ed-fadein-val">0.0 秒</span></label>
+            <label for="ed-fadein"><span data-i18n="ed.fadein"></span> <span id="ed-fadein-val">0.0</span></label>
             <input id="ed-fadein" type="range" min="0" max="5" step="0.1" value="0">
           </div>
           <div class="fx-tune">
-            <label for="ed-fadeout">淡出 <span id="ed-fadeout-val">0.0 秒</span></label>
+            <label for="ed-fadeout"><span data-i18n="ed.fadeout"></span> <span id="ed-fadeout-val">0.0</span></label>
             <input id="ed-fadeout" type="range" min="0" max="5" step="0.1" value="0">
           </div>
+
+          <h2 class="section-title" data-i18n="ed.tools"></h2>
+          <button id="ed-normalize" class="btn-secondary" data-i18n="ed.normalize"></button>
+
+          <div class="fx-tune">
+            <label for="ed-denoise"><span data-i18n="ed.denoise"></span> <span id="ed-denoise-val">50%</span></label>
+            <input id="ed-denoise" type="range" min="0" max="100" step="5" value="50">
+            <p class="sub tool-hint" data-i18n="ed.denoiseHint"></p>
+            <button id="ed-denoise-btn" class="btn-secondary tool-btn" data-i18n="ed.denoiseApply"></button>
+          </div>
+
+          <div class="fx-tune">
+            <label for="ed-speed"><span data-i18n="ed.speed"></span> <span id="ed-speed-val">1.00×</span></label>
+            <input id="ed-speed" type="range" min="0.5" max="2" step="0.05" value="1">
+            <button id="ed-speed-btn" class="btn-secondary tool-btn" data-i18n="ed.speedApply"></button>
+          </div>
+
+          <button id="ed-append" class="btn-secondary" data-i18n="ed.append"></button>
           <p id="ed-status" class="sub"></p>
+        </div>
+
+        <div id="ed-picker" class="picker" hidden>
+          <div class="picker-box">
+            <div class="picker-head">
+              <span data-i18n="ed.pickTitle"></span>
+              <button id="ed-picker-close" class="picker-close" aria-label="close">×</button>
+            </div>
+            <div id="ed-picker-list"></div>
+            <p id="ed-picker-empty" class="sub" data-i18n="ed.pickEmpty" hidden></p>
+          </div>
         </div>
       </section>
 
+      <!-- ========== 我的 ========== -->
       <section id="page-library" class="page">
         <div class="fx-wrap">
           <div class="card">
-            <p id="lib-current-info" class="sub card-info"></p>
+            <p id="lib-current-info" class="sub card-info" data-k="lib.noRecording"></p>
             <div id="lib-current-actions" hidden>
-              <input id="lib-name" class="text-input" type="text" maxlength="40" placeholder="作品名称" data-auto="1">
-              <button id="lib-save" class="btn-primary">保存到我的录音</button>
-              <div class="lib-two">
-                <button id="lib-dl-wav" class="btn-secondary">下载 WAV</button>
-                <button id="lib-dl-mp3" class="btn-secondary">下载 MP3</button>
+              <input id="lib-name" class="text-input" type="text" maxlength="40" data-i18n-ph="lib.namePh" data-auto="1">
+              <button id="lib-save" class="btn-primary" data-i18n="lib.save"></button>
+              <div class="lib-three">
+                <button id="lib-share" class="btn-secondary" data-i18n="lib.share"></button>
+                <button id="lib-dl-wav" class="btn-secondary" data-i18n="lib.dlWav"></button>
+                <button id="lib-dl-mp3" class="btn-secondary" data-i18n="lib.dlMp3"></button>
               </div>
             </div>
           </div>
           <p id="lib-msg" class="sub"></p>
 
-          <h2 class="section-title">我的录音</h2>
+          <h2 class="section-title" data-i18n="lib.list"></h2>
           <div id="lib-list" class="lib-list"></div>
-          <p id="lib-empty" class="sub">还没有保存的录音</p>
+          <p id="lib-empty" class="sub" data-i18n="lib.empty"></p>
           <audio id="lib-audio" playsinline></audio>
         </div>
       </section>
     </main>
 
     <nav class="tabbar">
-      <button class="tab active" data-page="record" data-title="录音">
+      <button class="tab active" data-page="record">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12h-2z"/></svg>
-        <span>录音</span>
+        <span data-i18n="tab.record"></span>
       </button>
-      <button class="tab" data-page="effects" data-title="变声">
+      <button class="tab" data-page="effects">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h2v4H3zm4-4h2v12H7zm4-4h2v20h-2zm4 4h2v12h-2zm4 4h2v4h-2z"/></svg>
-        <span>变声</span>
+        <span data-i18n="tab.effects"></span>
       </button>
-      <button class="tab" data-page="editor" data-title="编辑">
+      <button class="tab" data-page="editor">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.64 7.64A3 3 0 1 0 7.5 9.5L10 12l-2.5 2.5a3 3 0 1 0 1.42 1.42L12 12.83l7 7H22v-1L9.64 7.64zM6 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0 12a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm6-7.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1zM19 3l-6 6 2 2 7-7V3z"/></svg>
-        <span>编辑</span>
+        <span data-i18n="tab.editor"></span>
       </button>
-      <button class="tab" data-page="library" data-title="我的录音">
+      <button class="tab" data-page="library">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg>
-        <span>我的</span>
+        <span data-i18n="tab.library"></span>
       </button>
     </nav>
   </div>
