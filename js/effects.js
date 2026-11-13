@@ -1,44 +1,74 @@
-// effects.js - 变声：音调与音色（共振峰）分开调整 + EQ + 机器人
+// effects.js - 变声：音调与音色（共振峰）分开调整 + EQ + 特效
 //
 // pitch   = 音调（半音）：正数更高，负数更低
 // formant = 音色（半音）：正数更尖细（像更小的人），负数更粗壮（像更大的人）
-// 男声 -> 女声：音调大幅升高，音色小幅升高；男声 -> 大叔：音调降低，音色小幅降低
+// target  = 目标基频（Hz）：有它时，按录音者自己的音高自动算出需要升/降多少半音
 
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+// fpp = 音色变化量 / 音调变化量（自动模式下用）
 export const PRESETS = [
-  { id: 'original', name: '原声', desc: '不处理', pitch: 0, formant: 0 },
+  { id: 'original' },
   {
-    id: 'uncle', name: '大叔', desc: '低沉浑厚', pitch: -4, formant: -2,
+    id: 'uncle', target: 95, fpp: 0.5, pitch: -4, formant: -2,
     filters: [{ type: 'lowshelf', frequency: 200, gain: 3 }],
   },
   {
-    id: 'woman', name: '中年女声', desc: '适合男声录音', pitch: 6, formant: 3,
+    id: 'woman', target: 185, fpp: 0.3, pitch: 6, formant: 3,
     filters: [
       { type: 'lowshelf', frequency: 180, gain: -3 },
       { type: 'peaking', frequency: 3000, gain: 2, Q: 0.8 },
     ],
   },
   {
-    id: 'child', name: '儿童', desc: '尖细可爱', pitch: 9, formant: 5,
+    id: 'girl', target: 235, fpp: 0.35, pitch: 9, formant: 4.5,
+    filters: [
+      { type: 'lowshelf', frequency: 220, gain: -4 },
+      { type: 'highshelf', frequency: 4000, gain: 2 },
+    ],
+  },
+  {
+    id: 'man', target: 115, fpp: 0.4, pitch: -6, formant: -3,
+    filters: [{ type: 'lowshelf', frequency: 180, gain: 3 }],
+  },
+  {
+    id: 'child', target: 300, fpp: 0.35, pitch: 9, formant: 5,
     filters: [{ type: 'lowshelf', frequency: 250, gain: -5 }],
   },
   {
-    id: 'robot', name: '机器人', desc: '单一音高', pitch: 0, formant: 0, robot: 110,
+    id: 'robot', robot: 110,
     filters: [
       { type: 'highpass', frequency: 100 },
       { type: 'peaking', frequency: 1500, gain: 3, Q: 1 },
     ],
   },
   {
-    id: 'monster', name: '怪兽', desc: '极低沉', pitch: -9, formant: -5,
+    id: 'monster', pitch: -9, formant: -5,
     filters: [
       { type: 'lowshelf', frequency: 200, gain: 5 },
       { type: 'lowpass', frequency: 4500 },
     ],
   },
+  {
+    id: 'alien', pitch: 4, formant: 3,
+    filters: [{ type: 'highpass', frequency: 200 }],
+    fx: [{ kind: 'vibrato', rate: 7, depth: 0.004 }],
+  },
+  { id: 'echo', fx: [{ kind: 'echo', time: 0.3, feedback: 0.4, mix: 0.5 }] },
+  { id: 'reverb', fx: [{ kind: 'reverb', seconds: 2.4, mix: 0.45 }] },
+  {
+    id: 'phone',
+    filters: [
+      { type: 'highpass', frequency: 400 },
+      { type: 'lowpass', frequency: 3000 },
+      { type: 'peaking', frequency: 1200, gain: 4, Q: 1 },
+    ],
+    fx: [{ kind: 'distort', amount: 3 }],
+  },
 ];
 
 /* ---------- FFT ---------- */
-class FFT {
+export class FFT {
   constructor(n) {
     this.n = n;
     const bits = Math.log2(n);
@@ -85,13 +115,13 @@ class FFT {
   }
 }
 
-function hann(n) {
+export function hann(n) {
   const w = new Float64Array(n);
   for (let i = 0; i < n; i++) w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
   return w;
 }
 
-function toMono(buffer) {
+export function toMono(buffer) {
   const n = buffer.numberOfChannels;
   const out = new Float32Array(buffer.length);
   for (let c = 0; c < n; c++) {
@@ -179,7 +209,7 @@ export function pitchFormantShift(x, sr, pitchSt, formantSt) {
         }
         m = resid[j] * e;
       }
-      let tmp = ((freq - k) * twoPi) / osamp + k * expct;
+      const tmp = ((freq - k) * twoPi) / osamp + k * expct;
       sumPhase[k] += tmp;
       const ph = sumPhase[k];
       re[k] = m * Math.cos(ph);
@@ -243,20 +273,160 @@ export function robotize(x, sr, f0 = 110) {
   return out;
 }
 
+/* ---------- 检测说话人的平均音高（Hz） ---------- */
+export function estimateF0(buffer) {
+  const sr = buffer.sampleRate;
+  const x = toMono(buffer);
+  const step = Math.max(1, Math.round(sr / 8000));
+  const fs = sr / step;
+  const n = Math.min(Math.floor(x.length / step), Math.floor(fs * 40)); // 最多分析 40 秒
+  const y = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let s = 0;
+    for (let j = 0; j < step; j++) s += x[i * step + j];
+    y[i] = s / step;
+  }
+
+  const win = Math.round(fs * 0.04);
+  const hop = Math.round(fs * 0.03);
+  const minLag = Math.floor(fs / 400);
+  const maxLag = Math.ceil(fs / 70);
+  const need = win + maxLag + 1;
+
+  const frames = [];
+  let emax = 0;
+  for (let s = 0; s + need <= n; s += hop) {
+    let e = 0;
+    for (let i = 0; i < win; i++) e += y[s + i] * y[s + i];
+    frames.push({ s, e });
+    if (e > emax) emax = e;
+  }
+  if (!frames.length) return { f0: 0, voiced: 0 };
+
+  const f0s = [];
+  const r = new Float32Array(maxLag + 2);
+  for (const fr of frames) {
+    if (fr.e < emax * 0.03) continue; // 太安静
+    const s = fr.s;
+    let best = 0;
+    for (let lag = minLag; lag <= maxLag; lag++) {
+      let d = 0;
+      let e1 = 0;
+      for (let i = 0; i < win; i++) {
+        const b = y[s + i + lag];
+        d += y[s + i] * b;
+        e1 += b * b;
+      }
+      r[lag] = d / Math.sqrt(fr.e * e1 + 1e-12);
+      if (r[lag] > best) best = r[lag];
+    }
+    if (best < 0.6) continue; // 不是有声音（清音/噪声）
+    let pick = 0;
+    for (let lag = minLag + 1; lag < maxLag; lag++) {
+      if (r[lag] >= 0.9 * best && r[lag] >= r[lag - 1] && r[lag] >= r[lag + 1]) { pick = lag; break; }
+    }
+    if (pick) f0s.push(fs / pick);
+  }
+  if (f0s.length < 5) return { f0: 0, voiced: f0s.length / frames.length };
+  f0s.sort((a, b) => a - b);
+  return { f0: f0s[f0s.length >> 1], voiced: f0s.length / frames.length };
+}
+
+/* ---------- 预设 -> 实际要变的半音数 ---------- */
+// extra = { pitch, formant, f0 }；有 f0 且预设有 target 时，自动按说话人音高计算
+export function resolveShift(preset, extra = {}) {
+  let pitch = preset.pitch || 0;
+  let formant = preset.formant || 0;
+  let auto = false;
+  if (preset.target && extra.f0 > 0) {
+    pitch = clamp(12 * Math.log2(preset.target / extra.f0), -14, 14);
+    formant = clamp(pitch * preset.fpp, -6, 6);
+    auto = true;
+  }
+  return { pitch: pitch + (extra.pitch || 0), formant: formant + (extra.formant || 0), auto };
+}
+
+/* ---------- 特效节点 ---------- */
+function tailSeconds(fx) {
+  let t = 0;
+  for (const f of fx || []) {
+    if (f.kind === 'echo') t += Math.min(2.5, f.time * 5);
+    if (f.kind === 'reverb') t += f.seconds;
+  }
+  return t;
+}
+
+function addFx(ctx, input, f, sr) {
+  if (f.kind === 'echo') {
+    const out = ctx.createGain();
+    const dry = ctx.createGain();
+    const wet = ctx.createGain();
+    const delay = ctx.createDelay(2);
+    const fb = ctx.createGain();
+    delay.delayTime.value = f.time;
+    fb.gain.value = f.feedback;
+    wet.gain.value = f.mix;
+    input.connect(dry); dry.connect(out);
+    input.connect(delay); delay.connect(wet); wet.connect(out);
+    delay.connect(fb); fb.connect(delay);
+    return out;
+  }
+  if (f.kind === 'reverb') {
+    const out = ctx.createGain();
+    const dry = ctx.createGain();
+    const wet = ctx.createGain();
+    dry.gain.value = 0.8;
+    wet.gain.value = f.mix;
+    const len = Math.round(sr * f.seconds);
+    const ir = ctx.createBuffer(1, len, sr);
+    const d = ir.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5);
+    const conv = ctx.createConvolver();
+    conv.buffer = ir;
+    input.connect(dry); dry.connect(out);
+    input.connect(conv); conv.connect(wet); wet.connect(out);
+    return out;
+  }
+  if (f.kind === 'vibrato') {
+    const delay = ctx.createDelay(0.05);
+    delay.delayTime.value = 0.01;
+    const lfo = ctx.createOscillator();
+    const depth = ctx.createGain();
+    lfo.frequency.value = f.rate;
+    depth.gain.value = f.depth;
+    lfo.connect(depth); depth.connect(delay.delayTime);
+    lfo.start();
+    input.connect(delay);
+    return delay;
+  }
+  if (f.kind === 'distort') {
+    const sh = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    const norm = Math.tanh(f.amount);
+    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(f.amount * (i / 512 - 1)) / norm;
+    sh.curve = curve;
+    sh.oversample = '2x';
+    input.connect(sh);
+    return sh;
+  }
+  return input;
+}
+
 const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
 
-// 应用预设，返回新的 AudioBuffer（单声道）。extra = { pitch, formant } 为用户微调（半音）
+// 应用预设，返回新的 AudioBuffer（单声道）。extra = { pitch, formant, f0 }
 export async function applyPreset(buffer, preset, extra = {}) {
-  const pitch = (preset.pitch || 0) + (extra.pitch || 0);
-  const formant = (preset.formant || 0) + (extra.formant || 0);
-  if (pitch === 0 && formant === 0 && !preset.filters && !preset.robot) return buffer;
+  const { pitch, formant } = resolveShift(preset, extra);
+  const noShift = Math.abs(pitch) < 0.01 && Math.abs(formant) < 0.01;
+  if (noShift && !preset.filters && !preset.robot && !preset.fx) return buffer;
 
   const sr = buffer.sampleRate;
   let data = toMono(buffer);
   if (preset.robot) data = robotize(data, sr, preset.robot);
-  if (pitch !== 0 || formant !== 0) data = pitchFormantShift(data, sr, pitch, formant);
+  if (!noShift) data = pitchFormantShift(data, sr, pitch, formant);
 
-  const ctx = new OfflineCtx(1, data.length, sr);
+  const total = data.length + Math.round(sr * tailSeconds(preset.fx));
+  const ctx = new OfflineCtx(1, total, sr);
   const buf = ctx.createBuffer(1, data.length, sr);
   buf.copyToChannel(data, 0);
   const src = ctx.createBufferSource();
@@ -272,6 +442,7 @@ export async function applyPreset(buffer, preset, extra = {}) {
     node.connect(bq);
     node = bq;
   }
+  for (const f of preset.fx || []) node = addFx(ctx, node, f, sr);
   node.connect(ctx.destination);
   src.start();
 
