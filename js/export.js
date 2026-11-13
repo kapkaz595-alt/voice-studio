@@ -77,7 +77,7 @@ function loadLame() {
         } catch (e) { /* 试下一个地址 */ }
       }
       lamePromise = null;
-      throw new Error('MP3 编码库加载失败，请检查网络，或先下载 WAV。');
+      throw Object.assign(new Error('mp3.loadFail'), { i18n: 'mp3.loadFail' });
     })();
   }
   return lamePromise;
