@@ -76,9 +76,52 @@
       </section>
 
       <section id="page-editor" class="page">
-        <div class="placeholder">
+        <div id="ed-empty" class="placeholder">
           <p class="hint">编辑</p>
-          <p class="sub">裁剪 · 音量 · 淡入淡出<br>第 5 步加入</p>
+          <p id="ed-empty-text" class="sub">请先在“录音”页录一段声音。</p>
+          <button id="ed-goto" class="btn-secondary">去录音</button>
+        </div>
+
+        <div id="ed-main" class="fx-wrap" hidden>
+          <div id="ed-box" class="wave-box">
+            <canvas id="ed-wave" class="wave"></canvas>
+            <div id="ed-sel" class="sel">
+              <div id="ed-h-left" class="sel-handle left"></div>
+              <div id="ed-h-right" class="sel-handle right"></div>
+            </div>
+          </div>
+          <p id="ed-sel-info" class="sub"></p>
+
+          <div class="player-row">
+            <button id="ed-play-btn" class="play-btn" aria-label="播放">
+              <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+              <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+            </button>
+            <span id="ed-play-time" class="play-time">0:00 / 0:00</span>
+            <button id="ed-play-sel" class="btn-secondary btn-small">试听选区</button>
+          </div>
+          <audio id="ed-audio" playsinline></audio>
+
+          <div class="ed-actions">
+            <button id="ed-crop" class="fx-btn">保留选区</button>
+            <button id="ed-cut" class="fx-btn">删除选区</button>
+            <button id="ed-undo" class="fx-btn">撤销</button>
+            <button id="ed-reset" class="fx-btn">全部重置</button>
+          </div>
+
+          <div class="fx-tune">
+            <label for="ed-gain">音量 <span id="ed-gain-val">100%</span></label>
+            <input id="ed-gain" type="range" min="0" max="200" step="10" value="100">
+          </div>
+          <div class="fx-tune">
+            <label for="ed-fadein">淡入 <span id="ed-fadein-val">0.0 秒</span></label>
+            <input id="ed-fadein" type="range" min="0" max="5" step="0.1" value="0">
+          </div>
+          <div class="fx-tune">
+            <label for="ed-fadeout">淡出 <span id="ed-fadeout-val">0.0 秒</span></label>
+            <input id="ed-fadeout" type="range" min="0" max="5" step="0.1" value="0">
+          </div>
+          <p id="ed-status" class="sub"></p>
         </div>
       </section>
 
