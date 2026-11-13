@@ -3,11 +3,13 @@ import { Recorder, isSupported, explainError } from './recorder.js';
 import { WavePlayer, decodeBlob, computePeaks } from './player.js';
 import { PRESETS, applyPreset } from './effects.js';
 import { audioBufferToWav } from './export.js';
+import { initEditor } from './editor.js';
 
 // 全局状态（后续步骤的编辑、导出都用它）
 // recording = { blob, mimeType, duration, url, buffer(AudioBuffer) }  原始录音
-// processed = { buffer, blob, url, presetId, tune }                    变声后的结果
-export const state = { recording: null, processed: null };
+// processed = { buffer, blob, url, presetId, tune, ftune }             变声后的结果
+// edited    = { buffer, blob, url }                                    编辑后的结果（最终成品）
+export const state = { recording: null, processed: null, edited: null };
 
 const $ = id => document.getElementById(id);
 
@@ -40,6 +42,11 @@ function makePlayer({ canvas, audio, btn, time }) {
 const player = makePlayer({ canvas: 'rec-wave', audio: 'rec-audio', btn: 'play-btn', time: 'play-time' });
 const fxPlayer = makePlayer({ canvas: 'fx-wave', audio: 'fx-audio', btn: 'fx-play-btn', time: 'fx-play-time' });
 
+const editor = initEditor({
+  $, state, makePlayer, computePeaks, audioBufferToWav,
+  goRecord: () => showPage('record', '录音'),
+});
+
 /* ---------- 页面切换 ---------- */
 const tabs = document.querySelectorAll('.tab');
 const pages = document.querySelectorAll('.page');
@@ -48,10 +55,12 @@ const title = document.getElementById('page-title');
 function showPage(name, label) {
   player.pause();
   fxPlayer.pause();
+  editor.pause();
   pages.forEach(p => p.classList.toggle('active', p.id === `page-${name}`));
   tabs.forEach(t => t.classList.toggle('active', t.dataset.page === name));
   title.textContent = label;
   if (name === 'effects') refreshEffects();
+  if (name === 'editor') editor.refresh();
 }
 
 tabs.forEach(tab => {
@@ -81,6 +90,7 @@ function showError(msg) {
 function clearResult() {
   player.reset();
   resetEffects();
+  editor.reset();
   if (state.recording) URL.revokeObjectURL(state.recording.url);
   state.recording = null;
   recResult.hidden = true;
