@@ -126,9 +126,24 @@
       </section>
 
       <section id="page-library" class="page">
-        <div class="placeholder">
-          <p class="hint">我的录音</p>
-          <p class="sub">本地保存与导出<br>第 6 步加入</p>
+        <div class="fx-wrap">
+          <div class="card">
+            <p id="lib-current-info" class="sub card-info"></p>
+            <div id="lib-current-actions" hidden>
+              <input id="lib-name" class="text-input" type="text" maxlength="40" placeholder="作品名称" data-auto="1">
+              <button id="lib-save" class="btn-primary">保存到我的录音</button>
+              <div class="lib-two">
+                <button id="lib-dl-wav" class="btn-secondary">下载 WAV</button>
+                <button id="lib-dl-mp3" class="btn-secondary">下载 MP3</button>
+              </div>
+            </div>
+          </div>
+          <p id="lib-msg" class="sub"></p>
+
+          <h2 class="section-title">我的录音</h2>
+          <div id="lib-list" class="lib-list"></div>
+          <p id="lib-empty" class="sub">还没有保存的录音</p>
+          <audio id="lib-audio" playsinline></audio>
         </div>
       </section>
     </main>
