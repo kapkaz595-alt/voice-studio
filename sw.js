@@ -1,5 +1,5 @@
 // sw.js - 离线缓存：优先联网取最新文件，没网时用缓存
-const CACHE = 'voice-studio-v3';
+const CACHE = 'voice-studio-v4';
 const ASSETS = [
   './', 'index.html', 'manifest.json',
   'css/style.css',
