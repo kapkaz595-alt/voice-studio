@@ -11,13 +11,14 @@ export const PRESETS = [
   { id: 'original' },
   {
     id: 'uncle', target: 78, fpp: 0.85, pitch: -6, formant: -4,
-    hoarse: 0.7,
+    hoarse: 0.45,
     filters: [
       { type: 'lowshelf', frequency: 200, gain: 6 },
       { type: 'peaking', frequency: 300, gain: 3, Q: 0.8 },
-      { type: 'highshelf', frequency: 4500, gain: -6 },
+      { type: 'highshelf', frequency: 3000, gain: -8 },
+      { type: 'lowpass', frequency: 4500 },
     ],
-    fx: [{ kind: 'distort', amount: 1.6 }],
+    fx: [{ kind: 'distort', amount: 1.2 }],
   },
   {
     id: 'woman', target: 195, fpp: 0.55, pitch: 7, formant: 4,
@@ -436,8 +437,8 @@ function hoarseify(x, sr, amount) {
     rough = b * rough + (1 - b) * (Math.random() * 2 - 1);
     const r = Math.max(-1, Math.min(1, rough * 6));
     const w = Math.random() * 2 - 1;
-    const hp = w - prevN; prevN = w;
-    out[i] = v * (1 - 0.45 * amount * (0.5 + 0.5 * r)) + 0.5 * amount * env * hp;
+    prevN = 0.92 * prevN + 0.08 * w; const hp = prevN * 3;
+    out[i] = v * (1 - 0.45 * amount * (0.5 + 0.5 * r)) + 0.12 * amount * env * hp;
   }
   return out;
 }
