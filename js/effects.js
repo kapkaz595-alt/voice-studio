@@ -10,29 +10,35 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 export const PRESETS = [
   { id: 'original' },
   {
-    id: 'uncle', target: 95, fpp: 0.5, pitch: -4, formant: -2,
-    filters: [{ type: 'lowshelf', frequency: 200, gain: 3 }],
+    id: 'uncle', target: 78, fpp: 0.85, pitch: -6, formant: -4,
+    hoarse: 0.7,
+    filters: [
+      { type: 'lowshelf', frequency: 200, gain: 6 },
+      { type: 'peaking', frequency: 300, gain: 3, Q: 0.8 },
+      { type: 'highshelf', frequency: 4500, gain: -6 },
+    ],
+    fx: [{ kind: 'distort', amount: 1.6 }],
   },
   {
-    id: 'woman', target: 185, fpp: 0.3, pitch: 6, formant: 3,
+    id: 'woman', target: 195, fpp: 0.55, pitch: 7, formant: 4,
     filters: [
       { type: 'lowshelf', frequency: 180, gain: -3 },
       { type: 'peaking', frequency: 3000, gain: 2, Q: 0.8 },
     ],
   },
   {
-    id: 'girl', target: 235, fpp: 0.35, pitch: 9, formant: 4.5,
+    id: 'girl', target: 250, fpp: 0.6, pitch: 10, formant: 5.5,
     filters: [
       { type: 'lowshelf', frequency: 220, gain: -4 },
       { type: 'highshelf', frequency: 4000, gain: 2 },
     ],
   },
   {
-    id: 'man', target: 115, fpp: 0.4, pitch: -6, formant: -3,
+    id: 'man', target: 105, fpp: 0.6, pitch: -7, formant: -4,
     filters: [{ type: 'lowshelf', frequency: 180, gain: 3 }],
   },
   {
-    id: 'child', target: 300, fpp: 0.35, pitch: 9, formant: 5,
+    id: 'child', target: 320, fpp: 0.6, pitch: 10, formant: 6,
     filters: [{ type: 'lowshelf', frequency: 250, gain: -5 }],
   },
   {
@@ -58,12 +64,17 @@ export const PRESETS = [
   { id: 'reverb', fx: [{ kind: 'reverb', seconds: 2.4, mix: 0.45 }] },
   {
     id: 'phone',
+    lofi: { rate: 5200, bits: 8 },
+    noise: 0.012,
+    pregain: 0.7,
     filters: [
-      { type: 'highpass', frequency: 400 },
-      { type: 'lowpass', frequency: 3000 },
-      { type: 'peaking', frequency: 1200, gain: 4, Q: 1 },
+      { type: 'highpass', frequency: 480 },
+      { type: 'highpass', frequency: 480 },
+      { type: 'lowpass', frequency: 2600 },
+      { type: 'lowpass', frequency: 2600 },
+      { type: 'peaking', frequency: 1600, gain: 7, Q: 1.2 },
     ],
-    fx: [{ kind: 'distort', amount: 3 }],
+    fx: [{ kind: 'distort', amount: 5 }],
   },
 ];
 
@@ -340,7 +351,7 @@ export function resolveShift(preset, extra = {}) {
   let auto = false;
   if (preset.target && extra.f0 > 0) {
     pitch = clamp(12 * Math.log2(preset.target / extra.f0), -14, 14);
-    formant = clamp(pitch * preset.fpp, -6, 6);
+    formant = clamp(pitch * preset.fpp, -8, 8);
     auto = true;
   }
   return { pitch: pitch + (extra.pitch || 0), formant: formant + (extra.formant || 0), auto };
@@ -412,18 +423,73 @@ function addFx(ctx, input, f, sr) {
   return input;
 }
 
+
+/* ---------- 沙哑 / 低保真 / 噪声 ---------- */
+function hoarseify(x, sr, amount) {
+  const n = x.length, out = new Float32Array(n);
+  const a = Math.exp(-1 / (0.02 * sr));
+  const b = Math.exp(-1 / (sr / 90));
+  let env = 0, rough = 0, prevN = 0;
+  for (let i = 0; i < n; i++) {
+    const v = x[i];
+    env = a * env + (1 - a) * Math.abs(v);
+    rough = b * rough + (1 - b) * (Math.random() * 2 - 1);
+    const r = Math.max(-1, Math.min(1, rough * 6));
+    const w = Math.random() * 2 - 1;
+    const hp = w - prevN; prevN = w;
+    out[i] = v * (1 - 0.45 * amount * (0.5 + 0.5 * r)) + 0.5 * amount * env * hp;
+  }
+  return out;
+}
+
+function lofiify(x, sr, { rate, bits }) {
+  const n = x.length, out = new Float32Array(n);
+  const k = Math.max(1, Math.round(sr / rate));
+  const levels = Math.pow(2, bits - 1);
+  let hold = 0, acc = 0;
+  for (let i = 0; i < n; i++) {
+    let sum = 0, c = 0;
+    for (let j = 0; j < k && i - j >= 0; j++) { sum += x[i - j]; c++; }
+    acc = sum / c;
+    if (i % k === 0) hold = Math.round(acc * levels) / levels;
+    out[i] = hold;
+  }
+  return out;
+}
+
+function scalePeak(x, target) {
+  let p = 0;
+  for (let i = 0; i < x.length; i++) { const a = Math.abs(x[i]); if (a > p) p = a; }
+  if (p > 0) { const g = target / p; for (let i = 0; i < x.length; i++) x[i] *= g; }
+  return x;
+}
+
+function addNoise(x, level) {
+  let prev = 0;
+  for (let i = 0; i < x.length; i++) {
+    const w = Math.random() * 2 - 1;
+    x[i] += level * (w - prev * 0.5); prev = w;
+    if (Math.random() < 0.0004) x[i] += (Math.random() * 2 - 1) * level * 12;
+  }
+  return x;
+}
+
 const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
 
 // 应用预设，返回新的 AudioBuffer（单声道）。extra = { pitch, formant, f0 }
 export async function applyPreset(buffer, preset, extra = {}) {
   const { pitch, formant } = resolveShift(preset, extra);
   const noShift = Math.abs(pitch) < 0.01 && Math.abs(formant) < 0.01;
-  if (noShift && !preset.filters && !preset.robot && !preset.fx) return buffer;
+  if (noShift && !preset.filters && !preset.robot && !preset.fx && !preset.hoarse && !preset.lofi) return buffer;
 
   const sr = buffer.sampleRate;
   let data = toMono(buffer);
   if (preset.robot) data = robotize(data, sr, preset.robot);
   if (!noShift) data = pitchFormantShift(data, sr, pitch, formant);
+  if (preset.hoarse) data = hoarseify(data, sr, preset.hoarse);
+  if (preset.lofi) data = lofiify(data, sr, preset.lofi);
+  if (preset.pregain) data = scalePeak(data, preset.pregain);
+  if (preset.noise) data = addNoise(data, preset.noise);
 
   const total = data.length + Math.round(sr * tailSeconds(preset.fx));
   const ctx = new OfflineCtx(1, total, sr);
